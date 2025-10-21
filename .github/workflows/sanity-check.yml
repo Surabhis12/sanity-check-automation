@@ -19,13 +19,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout code with full history
+      # 1️⃣ Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2️⃣ Detect language
+      # 2️⃣ Detect changed language in PR
       - name: Detect language
         id: detect
         run: |
@@ -55,20 +55,18 @@ jobs:
           echo "Detected language: $LANG"
 
       # 3️⃣ Setup Node.js for JS
-      - name: Setup Node.js (for JS)
+      - name: Setup Node.js
         if: steps.detect.outputs.language == 'js'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # 4️⃣ Run ESLint for JS
+      # 4️⃣ Run ESLint via your script
       - name: Run ESLint
         if: steps.detect.outputs.language == 'js'
-        run: |
-          npm install -g eslint
-          npx eslint sample-code/js
+        run: bash ./scripts/run_eslint.sh
 
-      # 5️⃣ Comment on success
+      # 5️⃣ Comment on PR success
       - name: Comment on PR success
         if: success() && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
@@ -78,15 +76,15 @@ jobs:
             - Branch: `${{ github.head_ref || github.ref_name }}`
             - All checks passed.
 
-      # 6️⃣ Add label for passing PRs
+      # 6️⃣ Add label on success
       - name: Add label on success
         if: success() && github.event_name == 'pull_request'
         uses: actions-ecosystem/action-add-labels@v1
         with:
           labels: Sanity Check
 
-      # 7️⃣ Comment on failure
-      - name: Comment on failure
+      # 7️⃣ Comment on PR failure
+      - name: Comment on PR failure
         if: failure() && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
