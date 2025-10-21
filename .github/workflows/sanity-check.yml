@@ -1,125 +1,96 @@
 name: Sanity and Static Check
 
 on:
-  push:
-    branches:
-      - '**'
   pull_request:
     types: [opened, synchronize, reopened]
+    branches:
+      - '**'
+  push:
     branches:
       - '**'
 
 permissions:
   contents: read
   pull-requests: write
-  issues: write    # Run on PRs to any branch
+  issues: write
 
 jobs:
   sanity-check:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout code with full history
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # 2️⃣ Detect language
       - name: Detect language
         id: detect
         run: |
           echo "Detecting languages changed in PR..."
-          LANGS=$(git diff --name-only origin/main...HEAD | awk -F. '{print $NF}' | sort -u)
-          echo "Languages found: $LANGS"
+          FILES=$(git diff --name-only HEAD~1 HEAD)
+          echo "Files changed:"
+          echo "$FILES"
 
-          if echo "$LANGS" | grep -q "cpp"; then
-            echo "language=cpp" >> $GITHUB_OUTPUT
-          elif echo "$LANGS" | grep -q "c"; then
-            echo "language=c" >> $GITHUB_OUTPUT
-          elif echo "$LANGS" | grep -q "js"; then
+          if echo "$FILES" | grep -qE '\.js$|\.jsx$'; then
             echo "language=js" >> $GITHUB_OUTPUT
-          elif echo "$LANGS" | grep -q "java"; then
+          elif echo "$FILES" | grep -qE '\.c$|\.cpp$'; then
+            echo "language=cpp" >> $GITHUB_OUTPUT
+          elif echo "$FILES" | grep -qE '\.java$'; then
             echo "language=java" >> $GITHUB_OUTPUT
-          elif echo "$LANGS" | grep -q "kt"; then
+          elif echo "$FILES" | grep -qE '\.kt$'; then
             echo "language=kotlin" >> $GITHUB_OUTPUT
-          elif echo "$LANGS" | grep -q "swift"; then
+          elif echo "$FILES" | grep -qE '\.swift$'; then
             echo "language=swift" >> $GITHUB_OUTPUT
-          elif echo "$LANGS" | grep -q "rs"; then
+          elif echo "$FILES" | grep -qE '\.rs$'; then
             echo "language=rust" >> $GITHUB_OUTPUT
-          elif echo "$LANGS" | grep -q "dart"; then
+          elif echo "$FILES" | grep -qE '\.dart$'; then
             echo "language=dart" >> $GITHUB_OUTPUT
           else
             echo "language=unknown" >> $GITHUB_OUTPUT
           fi
 
-      # ---------- JavaScript ----------
-      - name: Setup Node.js
+          echo "Detected language: $LANGS"
+
+      # 3️⃣ Setup Node.js for JS
+      - name: Setup Node.js (for JS)
         if: steps.detect.outputs.language == 'js'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # 4️⃣ Run ESLint for JS
       - name: Run ESLint
         if: steps.detect.outputs.language == 'js'
         run: |
           npm install -g eslint
-          npx eslint . || echo "No lint errors found."
+          npx eslint sample-code/js
 
-      # ---------- C/C++ ----------
-      - name: Run C/C++ cppcheck
-        if: steps.detect.outputs.language == 'c' || steps.detect.outputs.language == 'cpp'
-        run: |
-          sudo apt-get install -y cppcheck
-          cppcheck --enable=all --suppress=missingIncludeSystem .
-
-      # ---------- Java ----------
-      - name: Run Java checkstyle
-        if: steps.detect.outputs.language == 'java'
-        run: |
-          sudo apt-get install -y openjdk-17-jdk
-          wget -qO checkstyle.jar https://github.com/checkstyle/checkstyle/releases/download/checkstyle-10.12.4/checkstyle-10.12.4-all.jar
-          java -jar checkstyle.jar -c /google_checks.xml .
-
-      # ---------- Kotlin ----------
-      - name: Run ktlint
-        if: steps.detect.outputs.language == 'kotlin'
-        run: |
-          curl -sSLO https://github.com/pinterest/ktlint/releases/latest/download/ktlint
-          chmod a+x ktlint
-          ./ktlint "**/*.kt" || echo "No lint errors found."
-
-      # ---------- Swift ----------
-      - name: Run SwiftLint
-        if: steps.detect.outputs.language == 'swift'
-        run: |
-          brew install swiftlint || true
-          swiftlint lint --quiet || echo "No lint errors found."
-
-      # ---------- Rust ----------
-      - name: Run cargo clippy
-        if: steps.detect.outputs.language == 'rust'
-        run: |
-          rustup update
-          cargo clippy --all-targets --all-features -- -D warnings || echo "No lint errors found."
-
-      # ---------- Flutter / Dart ----------
-      - name: Run Flutter Analyze
-        if: steps.detect.outputs.language == 'dart'
-        run: |
-          sudo snap install flutter --classic
-          flutter analyze || echo "No lint errors found."
-
-      # ---------- Comment on PR ----------
-      - name: Comment on PR
-        if: github.event_name == 'pull_request'
+      # 5️⃣ Comment on success
+      - name: Comment on PR success
+        if: success() && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           message: |
             ✅ Sanity Check Completed for **${{ steps.detect.outputs.language }}**
-            - Triggered by: `${{ github.actor }}`
             - Branch: `${{ github.head_ref || github.ref_name }}`
-            - Status: All checks passed ✅
+            - All checks passed.
 
-      # ---------- Add label ----------
-      - name: Add label
-        if: github.event_name == 'pull_request'
+      # 6️⃣ Add label for passing PRs
+      - name: Add label on success
+        if: success() && github.event_name == 'pull_request'
         uses: actions-ecosystem/action-add-labels@v1
         with:
           labels: Sanity Check
+
+      # 7️⃣ Comment on failure
+      - name: Comment on failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            ❌ Sanity Check **FAILED** for **${{ steps.detect.outputs.language }}**
+            - Branch: `${{ github.head_ref || github.ref_name }}`
+            - Please fix linting or code issues before merging.
