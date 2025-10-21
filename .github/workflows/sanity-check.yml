@@ -3,11 +3,16 @@ name: Sanity and Static Check
 on:
   push:
     branches:
-      - '**'                     # Run on all branch pushes
+      - '**'
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - '**'                     # Run on PRs to any branch
+      - '**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write    # Run on PRs to any branch
 
 jobs:
   sanity-check:
