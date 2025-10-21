@@ -34,25 +34,25 @@ jobs:
           echo "Files changed:"
           echo "$FILES"
 
+          LANG="unknown"
           if echo "$FILES" | grep -qE '\.js$|\.jsx$'; then
-            echo "language=js" >> $GITHUB_OUTPUT
+            LANG="js"
           elif echo "$FILES" | grep -qE '\.c$|\.cpp$'; then
-            echo "language=cpp" >> $GITHUB_OUTPUT
+            LANG="cpp"
           elif echo "$FILES" | grep -qE '\.java$'; then
-            echo "language=java" >> $GITHUB_OUTPUT
+            LANG="java"
           elif echo "$FILES" | grep -qE '\.kt$'; then
-            echo "language=kotlin" >> $GITHUB_OUTPUT
+            LANG="kotlin"
           elif echo "$FILES" | grep -qE '\.swift$'; then
-            echo "language=swift" >> $GITHUB_OUTPUT
+            LANG="swift"
           elif echo "$FILES" | grep -qE '\.rs$'; then
-            echo "language=rust" >> $GITHUB_OUTPUT
+            LANG="rust"
           elif echo "$FILES" | grep -qE '\.dart$'; then
-            echo "language=dart" >> $GITHUB_OUTPUT
-          else
-            echo "language=unknown" >> $GITHUB_OUTPUT
+            LANG="dart"
           fi
 
-          echo "Detected language: $LANGS"
+          echo "language=$LANG" >> $GITHUB_OUTPUT
+          echo "Detected language: $LANG"
 
       # 3️⃣ Setup Node.js for JS
       - name: Setup Node.js (for JS)
