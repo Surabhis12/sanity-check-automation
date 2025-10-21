@@ -3,3 +3,5 @@ function validateUser(user) {
     return true;
 }
 console.log(validateUser({ name: 'Surabhi', email: 'test@example.com' }));
+echo "// test PR" >> sample-code/js/test.js
+
