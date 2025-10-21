@@ -1,23 +1,33 @@
-// Intentionally bad code for sanity check failure test
+// Corrected code for sanity check pass
 
-const axios = require('axios')
+const axios = require('axios');
 
+/**
+ * Fetch users from a given API URL.
+ * @param {string} apiUrl - The API endpoint URL
+ * @returns {Promise<Object>} - The API response data
+ */
 async function fetchUsers(apiUrl) {
-    // Missing proper validation
-    if(!apiUrl){
-        console.log("URL missing")
-    }
+  if (!apiUrl) {
+    throw new Error("API URL is required");
+  }
 
-    // Unused variable
-    let counter = 0
+  // Properly await the async call
+  const response = await axios.get(apiUrl);
 
-    // Missing await (async issue)
-    const response = axios.get(apiUrl)
+  // Log safely (allowed if needed) or remove console.log to satisfy stricter lint rules
+  // console.log("Fetched data:", response.data);
 
-    // Unused console.log and inconsistent indentation
-        console.log("Fetched data maybe:", response.data)
-
-    // Missing return
+  // Return response data
+  return response.data;
 }
 
-fetchUsers()
+// Example usage
+(async () => {
+  try {
+    const data = await fetchUsers("https://jsonplaceholder.typicode.com/users");
+    console.log("Fetched users:", data);
+  } catch (error) {
+    console.error(error.message);
+  }
+})();
