@@ -1,48 +1,58 @@
 name: Sanity and Static Check
 
 on:
-    pull_request:
-        types: [opened, synchronize, reopened]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - "feature/*"
 
 jobs:
-    sanity-check:
-        runs-on: ubuntu-latest
+  sanity-check:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Detect language
-              id: detect
-              run: |
-                  echo "Detecting language..."
-                  LANGS=$(git diff --name-only origin/main...HEAD | awk -F. '{print $NF}' | sort -u)
-                  echo "Languages found: $LANGS"
-                  if echo "$LANGS" | grep -q "js"; then
-                    echo "language=js" >> $GITHUB_OUTPUT
-                  else
-                    echo "language=unknown" >> $GITHUB_OUTPUT
-                  fi
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-            - name: Setup Node.js (for JavaScript check)
-              if: steps.detect.outputs.language == 'js'
-              uses: actions/setup-node@v4
-              with:
-                  node-version: '18'
+      - name: Detect language
+        id: detect
+        run: |
+          echo "Detecting languages changed in PR..."
+          FILES=$(git diff --name-only origin/main...HEAD || git ls-files)
+          echo "$FILES"
+          if echo "$FILES" | grep -q "\.js$"; then
+            echo "language=js" >> $GITHUB_OUTPUT
+            echo "Detected language: JavaScript"
+          else
+            echo "language=unknown" >> $GITHUB_OUTPUT
+            echo "Detected language: None"
+          fi
 
-            - name: Run ESLint
-              if: steps.detect.outputs.language == 'js'
-              run: |
-                  npm install -g eslint
-                  npx eslint sample-code/js || echo "No lint errors found."
+      - name: Run ESLint (JavaScript sanity check)
+        if: steps.detect.outputs.language == 'js'
+        run: bash ./scripts/run_eslint.sh
 
-            - name: Comment on PR
-              uses: marocchino/sticky-pull-request-comment@v2
-              with:
-                  message: |
-                      ✅ Sanity Check Completed for **${{ steps.detect.outputs.language }}**
+      - name: Comment on PR with status
+        if: always()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            🧪 **Sanity Check Summary**
+            **Triggered by:** ${{ github.actor }}
+            **Branch:** ${{ github.head_ref }}
+            **Language:** ${{ steps.detect.outputs.language }}
+            **Status:** ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
 
-            - name: Add label
-              uses: actions-ecosystem/action-add-labels@v1
-              with:
-                  labels: Sanity Check
+      - name: Add result label
+        if: always()
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: |
+            ${{ job.status == 'success' && 'Sanity Check Passed' || 'Sanity Check Failed' }}
