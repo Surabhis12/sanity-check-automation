@@ -1,32 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
-# Directory containing JS code
-JS_DIR="sample-code/js"
+echo "Running ESLint on sample-code/js..."
 
-echo "Running ESLint on ${JS_DIR}..."
-
-# Check if ESLint config exists
-if [ ! -f "./eslint.config.js" ]; then
-  echo "❌ ESLint configuration not found! Please add eslint.config.js in repo root."
-  exit 1
+# Ensure node_modules exists locally
+if [ ! -d "node_modules" ]; then
+  echo "Installing dependencies..."
+  npm install
 fi
 
-# Install ESLint locally if not present
-if ! command -v eslint &> /dev/null; then
+# Ensure ESLint is available locally
+if ! npx --no-install eslint -v >/dev/null 2>&1; then
   echo "Installing ESLint..."
-  npm install eslint@latest
+  npm install eslint @eslint/js --save-dev
 fi
 
-# Run ESLint
-npx eslint "${JS_DIR}"
+echo "ESLint installed. Running checks..."
 
-# Capture exit code
-CODE=$?
+# Use npx to call the local ESLint binary
+npx eslint sample-code/js --max-warnings=0 || {
+  echo "❌ ESLint check failed."
+  exit 1
+}
 
-if [ $CODE -eq 0 ]; then
-  echo "✅ ESLint passed successfully."
-else
-  echo "❌ ESLint failed with exit code $CODE."
-  exit $CODE
-fi
+echo "✅ ESLint check passed successfully."
