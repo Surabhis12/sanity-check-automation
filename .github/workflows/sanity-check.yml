@@ -3,92 +3,56 @@ name: Sanity and Static Check
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches:
-      - '**'
   push:
     branches:
-      - '**'
-
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+      - main
+      - "feature/*"
 
 jobs:
   sanity-check:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # 2️⃣ Detect changed language in PR
-      - name: Detect language
-        id: detect
-        run: |
-          echo "Detecting languages changed in PR..."
-          FILES=$(git diff --name-only HEAD~1 HEAD)
-          echo "Files changed:"
-          echo "$FILES"
-
-          LANG="unknown"
-          if echo "$FILES" | grep -qE '\.js$|\.jsx$'; then
-            LANG="js"
-          elif echo "$FILES" | grep -qE '\.c$|\.cpp$'; then
-            LANG="cpp"
-          elif echo "$FILES" | grep -qE '\.java$'; then
-            LANG="java"
-          elif echo "$FILES" | grep -qE '\.kt$'; then
-            LANG="kotlin"
-          elif echo "$FILES" | grep -qE '\.swift$'; then
-            LANG="swift"
-          elif echo "$FILES" | grep -qE '\.rs$'; then
-            LANG="rust"
-          elif echo "$FILES" | grep -qE '\.dart$'; then
-            LANG="dart"
-          fi
-
-          echo "language=$LANG" >> $GITHUB_OUTPUT
-          echo "Detected language: $LANG"
-
-      # 3️⃣ Setup Node.js for JS
       - name: Setup Node.js
-        if: steps.detect.outputs.language == 'js'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # 4️⃣ Run ESLint via your script
-      - name: Run ESLint
+      - name: Detect language
+        id: detect
+        run: |
+          echo "Detecting languages changed in PR..."
+          FILES=$(git diff --name-only origin/main...HEAD || git ls-files)
+          echo "$FILES"
+          if echo "$FILES" | grep -q "\.js$"; then
+            echo "language=js" >> $GITHUB_OUTPUT
+            echo "Detected language: JavaScript"
+          else
+            echo "language=unknown" >> $GITHUB_OUTPUT
+            echo "Detected language: None"
+          fi
+
+      - name: Run ESLint (JavaScript sanity check)
         if: steps.detect.outputs.language == 'js'
         run: bash ./scripts/run_eslint.sh
 
-      # 5️⃣ Comment on PR success
-      - name: Comment on PR success
-        if: success() && github.event_name == 'pull_request'
+      - name: Comment on PR with status
+        if: always()
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           message: |
-            ✅ Sanity Check Completed for **${{ steps.detect.outputs.language }}**
-            - Branch: `${{ github.head_ref || github.ref_name }}`
-            - All checks passed.
+            🧪 **Sanity Check Summary**
+            **Triggered by:** ${{ github.actor }}
+            **Branch:** ${{ github.head_ref }}
+            **Language:** ${{ steps.detect.outputs.language }}
+            **Status:** ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
 
-      # 6️⃣ Add label on success
-      - name: Add label on success
-        if: success() && github.event_name == 'pull_request'
+      - name: Add result label
+        if: always()
         uses: actions-ecosystem/action-add-labels@v1
         with:
-          labels: Sanity Check
-
-      # 7️⃣ Comment on PR failure
-      - name: Comment on PR failure
-        if: failure() && github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          message: |
-            ❌ Sanity Check **FAILED** for **${{ steps.detect.outputs.language }}**
-            - Branch: `${{ github.head_ref || github.ref_name }}`
-            - Please fix linting or code issues before merging.
+          labels: |
+            ${{ job.status == 'success' && 'Sanity Check Passed' || 'Sanity Check Failed' }}
